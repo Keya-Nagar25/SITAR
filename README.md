@@ -1,53 +1,205 @@
-Fill in the Frames Seamlessly - Enhancing Temporal Resolution of Satellite Imagery using the techniques of AI/ML based on Optical Flow
-Description
-Satellite images for geo-stationary satellites are often captured at fixed intervals (e.g., every 30 minutes for geostationary satellites like INSAT, every 10 minutes for Himawari/GOES satellites or every few days for polar-orbiting satellites). This leads to limitations in temporal resolution that restricts near real-time monitoring of dynamic phenomena such as fire, cyclones, thunderstorms, floods and rapid land changes. Traditional optical-flow based temporal interpolation is limited with incorrect results (blurred images & other artefacts) and they fail to capture fast-moving or non-linear changes in cloud dynamics.
+# Fill in the Frames Seamlessly
 
-This problem proposes to develop an AI/ML based Optical Flow frame interpolation technique to generate intermediate frames between two consecutive satellite images to effectively enhance temporal resolution, enabling more frequent observations without additional satellite resources.
+**Enhancing the temporal resolution of satellite imagery using AI/ML-based optical flow frame interpolation.**
 
-Objective
-The developed software should include and accomplish the following steps:
+[![Python](https://img.shields.io/badge/Python-3.10+-3776AB?logo=python&logoColor=white)](https://www.python.org/)
+[![PyTorch](https://img.shields.io/badge/PyTorch-2.x-EE4C2C?logo=pytorch&logoColor=white)](https://pytorch.org/)
+[![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+[![Status](https://img.shields.io/badge/status-in%20development-yellow.svg)]()
 
-Develop an optical flow-based model to estimate motion vectors between consecutive satellite frames.
-Generate synthetic intermediate frames using Deep Learning frame interpolation methods.
-Improve temporal resolution of satellite imagery (e.g., from 30 minutes to 15 minutes and further to 7.5 minutes interval or equivalent).
-Validate results against real higher temporal resolution datasets (like Himawari/GOES-19) using image similarity metrics such as SSIM, MSE, PSNR, FSIM, etc.
-Expected Outcomes
-Generation of synthetic intermediate frames using Deep Learning based frame interpolation methods with Optical Flow for INSAT-3DS/3DR imagery.
+---
 
-Dataset Required
-Thermal Infrared band data (around 10 micrometer) of geo-stationary satellite datasets to be used from online sources. The input data should be .nc or .h5 files.
+## Overview
 
-GOES-19 ABI Channel 13 data from NOAA GOES-19 AWS bucket
-INSAT-3DS/3DR TIR1 channel data from mosdac
-Himawari-8.
-Suggested Tools/Technologies
-Deep Learning based video interpolation models can be explored and trained/fine-tuned using the above datasets (e.g., Super SloMo, RIFE, etc).
-Web technologies to be used for visualisation (Step 2 of Expected Solution).
-Expected Solution / Steps to be followed to achieve the objectives
-Solution for the challenge should include a prototype for AI-powered frame interpolation for satellite imagery that should comprise of:
+Geostationary satellites capture imagery at fixed intervals — every 30 minutes for INSAT, every 10 minutes for Himawari and GOES, and every few days for polar-orbiting platforms. This fixed cadence limits near real-time monitoring of fast-evolving phenomena such as cyclones, thunderstorms, wildfires, floods, and rapid land-surface change.
 
-Frame Interpolation
-Takes consecutive satellite images and generates intermediate frames. Should include:
-Optical Flow Estimation: can explore and use AI/ML models. Preferably, models are to be trained on satellite data collected from Step A.
-Frame Interpolation: can explore and use interpolation networks for synthesis of new frames.
-The input and output files to the model should be .nc files.
-Visualisation
-Develop a dashboard showing original vs. interpolated satellite animations. Should include:
-After interpolation of a set of satellite frames, the output should be displayed with time-lapse animations.
-Animations to be present both for ground truth (original satellite frames) and also for interpolated frames.
-Generate a report comparing results with ground truth (existing frames). Should include:
-Comparison of generated frames with the ground truth using metrics of SSIM, MSE, FSIM, etc. Include plots of the results
-Any other suitable metrics can also be explored and used. Metrics should be suitable to capture the cloud movements.
-INSAT-3DS
-Model to be applied on INSAT-3DR/3DS data.
-Based upon the best model created/used/trained from above steps, the intermediate frames of the INSAT-3DS are to be interpolated and the animations are to be prepared for the INSAT data at a temporal resolution of 15 minutes.
-For Steps 1-3, GOES-19 data or any other geo-stationary satellite of high temporal frequency, may be used, e.g., taking the frames of 00.00 hrs and 00.20 hrs as input, the model should output the frame at 00.10 hrs.
+Classical optical-flow interpolation struggles here: it produces blurring and artefacts, and it cannot model the fast, non-linear motion typical of cloud systems.
 
-For Step 4, the above trained model(s) have to be used on INSAT-3DS data.
+This project develops a deep learning frame interpolation pipeline that synthesises intermediate frames between two consecutive satellite images — effectively increasing temporal resolution **without additional satellite resources**.
 
-Evaluation Parameters
-The evaluation would be done on:
+> **30 min → 15 min → 7.5 min**, from the same input data.
 
-Frame Interpolation: Image quality metrics of MSE, PSNR and any other image metrics of how the generated frame is different from the ground truth
-Visualisation: Web GUI Design
-Subject to Visual Quality of the INSAT-3DS interpolation images.
+---
+
+## Objectives
+
+1. **Motion estimation** — build an optical flow model that estimates motion vectors between consecutive satellite frames.
+2. **Frame synthesis** — generate synthetic intermediate frames using deep learning interpolation networks.
+3. **Temporal upscaling** — improve effective temporal resolution from 30 minutes to 15 minutes, and further to 7.5 minutes or equivalent.
+4. **Validation** — evaluate against real high-temporal-resolution datasets (Himawari / GOES-19) using SSIM, MSE, PSNR, FSIM and other suitable metrics.
+
+---
+
+## How It Works
+
+```
+   Frame @ 00:00              Frame @ 00:20
+        │                          │
+        └────────────┬─────────────┘
+                     ▼
+        ┌────────────────────────┐
+        │  Optical Flow Estimator│   motion vectors
+        └────────────────────────┘
+                     ▼
+        ┌────────────────────────┐
+        │ Interpolation Network  │   warping + synthesis
+        └────────────────────────┘
+                     ▼
+            Synthetic Frame @ 00:10
+                     ▼
+        ┌────────────────────────┐
+        │  Validation + Metrics  │   SSIM · PSNR · MSE · FSIM
+        └────────────────────────┘
+                     ▼
+              Web Dashboard
+         (ground truth vs interpolated)
+```
+
+Input and output files are handled in **NetCDF (`.nc`)** format throughout the pipeline.
+
+---
+
+## Datasets
+
+Thermal infrared band data (~10 µm) from geostationary satellites. Accepted input formats: `.nc` and `.h5`.
+
+| Satellite | Channel / Band | Source | Role |
+|---|---|---|---|
+| **GOES-19** | ABI Channel 13 | NOAA GOES-19 AWS bucket | Training & validation |
+| **INSAT-3DS / 3DR** | TIR1 | MOSDAC | Target application |
+| **Himawari-8** | Band 13 (IR) | JMA / AWS | Training & validation |
+
+GOES-19 (or any other high-frequency geostationary source) is used for development and benchmarking. The best-performing model is then applied to INSAT-3DR/3DS data.
+
+---
+
+## Deliverables
+
+### 1. Frame Interpolation
+
+Takes two consecutive satellite images and generates the intermediate frame.
+
+- Optical flow estimation using AI/ML models, preferably trained on satellite data
+- Frame synthesis via interpolation networks
+- `.nc` in, `.nc` out
+
+### 2. Visualisation Dashboard
+
+A web interface comparing original and interpolated imagery.
+
+- Time-lapse animations of interpolated output
+- Side-by-side animations of ground truth and generated frames
+
+### 3. Comparison Report
+
+- Quantitative comparison against ground truth using SSIM, MSE, PSNR, FSIM
+- Plots of metric distributions across the test set
+- Additional metrics explored where they better capture cloud motion
+
+### 4. INSAT-3DS Application
+
+- The trained model applied to INSAT-3DR/3DS imagery
+- Interpolated animations prepared at **15-minute** temporal resolution
+
+---
+
+## Tech Stack
+
+| Layer | Tools |
+|---|---|
+| **Interpolation models** | RIFE, Super SloMo, and similar video interpolation architectures |
+| **Deep learning** | PyTorch |
+| **Geospatial I/O** | xarray, netCDF4, h5py |
+| **Metrics** | scikit-image, piq |
+| **Visualisation** | Web-based dashboard (animations + metric plots) |
+
+---
+
+## Getting Started
+
+### Prerequisites
+
+- Python 3.10 or later
+- CUDA-capable GPU recommended for training
+- Sufficient disk space for satellite archives
+
+### Installation
+
+```bash
+git clone https://github.com/<your-username>/<your-repo>.git
+cd <your-repo>
+
+python -m venv .venv
+source .venv/bin/activate        # Windows: .venv\Scripts\activate
+
+pip install -r requirements.txt
+```
+
+### Usage
+
+```bash
+# Download and prepare data
+python scripts/download_data.py --satellite goes19 --channel 13
+
+# Train the interpolation model
+python train.py --config configs/default.yaml
+
+# Generate an intermediate frame
+python interpolate.py --frame-a data/00_00.nc --frame-b data/00_20.nc --out data/00_10.nc
+
+# Evaluate against ground truth
+python evaluate.py --pred data/00_10.nc --truth data/00_10_truth.nc
+```
+
+> Adjust these commands to match the scripts in this repository.
+
+---
+
+## Project Structure
+
+```
+.
+├── configs/          # Training and model configuration
+├── data/             # Raw and processed satellite imagery
+├── models/           # Optical flow and interpolation architectures
+├── scripts/          # Data download and preprocessing
+├── dashboard/        # Web visualisation
+├── notebooks/        # Exploration and analysis
+├── train.py
+├── interpolate.py
+└── evaluate.py
+```
+
+---
+
+## Evaluation Criteria
+
+| Area | What is assessed |
+|---|---|
+| **Frame interpolation** | MSE, PSNR and other image quality metrics against ground truth |
+| **Visualisation** | Web GUI design and usability |
+| **INSAT-3DS output** | Visual quality of the interpolated imagery |
+
+---
+
+## Roadmap
+
+- [ ] Data acquisition pipeline for GOES-19, Himawari-8, INSAT-3DS/3DR
+- [ ] Preprocessing and NetCDF normalisation
+- [ ] Baseline optical flow estimation
+- [ ] Deep learning interpolation model training
+- [ ] Metric evaluation suite (SSIM, MSE, PSNR, FSIM)
+- [ ] Web dashboard with comparative animations
+- [ ] INSAT-3DS interpolation at 15-minute resolution
+
+---
+
+## Acknowledgements
+
+Satellite data courtesy of **NOAA** (GOES-19), **JMA** (Himawari-8), and **ISRO / MOSDAC** (INSAT-3DR / 3DS).
+
+---
+
+## License
+
+Released under the MIT License. See [LICENSE](LICENSE) for details.
