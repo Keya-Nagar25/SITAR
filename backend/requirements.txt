@@ -18,8 +18,13 @@ matplotlib
 pillow
 opencv-python
 
-# Dashboard (remove if you don't use Streamlit)
-streamlit
+# Metrics + HDF5 input
+scikit-image
+h5py
+
+# API server for the web dashboard (frontend/)
+fastapi
+uvicorn[standard]
 
 # Testing
 pytest

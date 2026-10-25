@@ -126,3 +126,53 @@ class SSIMLoss(nn.Module):
         )
 
         return 1.0 - ssim_map.mean()
+
+class GradientLoss(nn.Module):
+    """L1 distance between horizontal/vertical image gradients (keeps cloud edges sharp)."""
+
+    def forward(
+        self,
+        pred: torch.Tensor,
+        target: torch.Tensor
+    ) -> torch.Tensor:
+
+        def grads(x):
+            return x[..., :, 1:] - x[..., :, :-1], x[..., 1:, :] - x[..., :-1, :]
+
+        pdx, pdy = grads(pred)
+        tdx, tdy = grads(target)
+        return F.l1_loss(pdx, tdx) + F.l1_loss(pdy, tdy)
+
+
+class CombinedInterpolationLoss(nn.Module):
+    """Weighted sum used by train.py: Charbonnier reconstruction + SSIM + gradient."""
+
+    def __init__(
+        self,
+        w_recon: float = 1.0,
+        w_ssim: float = 0.2,
+        w_grad: float = 0.1
+    ):
+
+        super().__init__()
+
+        self.w_recon = w_recon
+        self.w_ssim = w_ssim
+        self.w_grad = w_grad
+
+        self.recon = CharbonnierLoss()
+        self.ssim = SSIMLoss()
+        self.grad = GradientLoss()
+
+    def forward(
+        self,
+        pred: torch.Tensor,
+        target: torch.Tensor
+    ) -> Dict[str, torch.Tensor]:
+
+        recon = self.recon(pred, target)
+        ssim = self.ssim(pred, target)
+        grad = self.grad(pred, target)
+
+        total = self.w_recon * recon + self.w_ssim * ssim + self.w_grad * grad
+        return {"total": total, "recon": recon, "ssim": ssim, "grad": grad}
