@@ -214,7 +214,12 @@ window.TI = window.TI || {};
     const url = (p) => base.replace(/\/$/, "") + p;
     async function j(path, opts) {
       const r = await fetch(url(path), opts);
-      if (!r.ok) throw new Error(`${r.status} ${r.statusText} — ${path}`);
+      if (!r.ok) {
+        // FastAPI puts the reason in {"detail": "..."}; show that instead of a bare status.
+        let detail = "";
+        try { detail = (await r.json()).detail || ""; } catch (e) { /* not JSON */ }
+        throw new Error(detail ? `${detail} (${r.status})` : `${r.status} ${r.statusText} — ${path}`);
+      }
       return r.json();
     }
     const imgCache = new Map();
@@ -241,7 +246,8 @@ window.TI = window.TI || {};
       health: () => j("/api/health"),
       sources: () => j("/api/sources"),
       frames: async (source) => remember(await j(`/api/frames?source=${encodeURIComponent(source)}`)),
-      frameById: (id) => frameIndex.get(id),
+      // Metric rows only carry ids; image routes need nothing else, so a stub works.
+      frameById: (id) => frameIndex.get(id) || (id ? { id } : null),
       async draw(canvas, frame, cmap) {
         const im = await loadImage(imageUrl(frame, cmap));
         canvas.width = im.naturalWidth; canvas.height = im.naturalHeight;
@@ -261,7 +267,11 @@ window.TI = window.TI || {};
         valCache.set(frame.id, v);
         return v;
       },
-      async baselineValues() { return null; },
+      // The backend serves the linear blend of a generated frame's inputs as "<id>~blend".
+      async baselineValues(frame) {
+        if (!frame || frame.is_synthetic === false) return null;
+        try { return (await this.values({ id: frame.baseline_id || frame.id + "~blend" })).data; } catch (e) { return null; }
+      },
       async interpolate(params, onProgress) {
         const { job_id } = await j("/api/interpolate", {
           method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(params),

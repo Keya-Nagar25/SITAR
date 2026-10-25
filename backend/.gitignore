@@ -216,3 +216,9 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# SITAR data: satellite frames, generated sample data and interpolation output
+# (regenerate samples with: python scripts/make_sample_data.py)
+data/*
+!data/.gitkeep
+checkpoints/*.pth
