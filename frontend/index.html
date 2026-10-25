@@ -1,0 +1,303 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Frame Interpolation Console</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,300..800&family=Martian+Mono:wdth,wght@75..112,300..600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+
+<header class="topbar">
+  <div class="brand">
+    <span class="brand-mark" aria-hidden="true"></span>
+    <div>
+      <div class="brand-name">Fill&nbsp;the&nbsp;Frames</div>
+      <div class="brand-sub mono">TIR ~10.8&thinsp;µm · optical-flow frame interpolation</div>
+    </div>
+  </div>
+
+  <nav class="tabs" role="tablist">
+    <button role="tab" data-tab="workbench" aria-selected="true">Workbench</button>
+    <button role="tab" data-tab="animation">Animation</button>
+    <button role="tab" data-tab="metrics">Metrics</button>
+    <button role="tab" data-tab="insat">INSAT-3DS</button>
+    <button role="tab" data-tab="report">Report</button>
+  </nav>
+
+  <div class="conn">
+    <button class="conn-pill" id="connPill" title="Backend connection">
+      <span class="dot"></span><span id="connLabel" class="mono">checking…</span>
+    </button>
+    <div class="conn-pop" id="connPop" hidden>
+      <label class="field">
+        <span>Backend URL</span>
+        <input id="apiBase" class="mono" type="text" placeholder="http://localhost:8000">
+      </label>
+      <div class="row gap">
+        <button class="btn" id="connRetry">Connect</button>
+        <button class="btn ghost" id="connDemo">Use demo data</button>
+      </div>
+      <p class="hint">Demo mode synthesises brightness-temperature fields in the browser so every screen can be tried without the model server. See <span class="mono">README.md</span> for the API contract.</p>
+    </div>
+  </div>
+</header>
+
+<main>
+
+<!-- ============================ WORKBENCH ============================ -->
+<section class="tab-panel" id="tab-workbench">
+  <div class="wb-grid">
+
+    <aside class="panel wb-inputs">
+      <h2 class="h">Inputs</h2>
+
+      <label class="field">
+        <span>Satellite / band</span>
+        <select id="wbSource"></select>
+      </label>
+
+      <div class="pair">
+        <label class="field">
+          <span>Frame 0 <em class="mono">t₀</em></span>
+          <select id="wbF0" class="mono"></select>
+        </label>
+        <label class="field">
+          <span>Frame 1 <em class="mono">t₁</em></span>
+          <select id="wbF1" class="mono"></select>
+        </label>
+      </div>
+      <div class="gapnote mono" id="wbGap"></div>
+
+      <div class="thumbs">
+        <figure><canvas id="wbThumb0" width="256" height="256"></canvas><figcaption class="mono" id="wbThumb0Cap"></figcaption></figure>
+        <figure><canvas id="wbThumb1" width="256" height="256"></canvas><figcaption class="mono" id="wbThumb1Cap"></figcaption></figure>
+      </div>
+
+      <label class="field">
+        <span>Interpolation factor</span>
+        <div class="seg" id="wbFactor">
+          <button data-v="2" aria-pressed="true">×2</button>
+          <button data-v="4">×4</button>
+          <button data-v="8">×8</button>
+        </div>
+      </label>
+      <div class="gapnote mono" id="wbFactorNote"></div>
+
+      <label class="field">
+        <span>Model</span>
+        <select id="wbModel">
+          <option value="SatelliteRIFE">SatelliteRIFE (fine-tuned)</option>
+          <option value="RIFE-pretrained">RIFE (pretrained, no fine-tune)</option>
+          <option value="SuperSloMo">Super SloMo</option>
+        </select>
+      </label>
+
+      <button class="btn primary wide" id="wbRun">Run interpolation</button>
+
+      <div class="progress" id="wbProgress" hidden>
+        <div class="progress-bar"><i id="wbProgressFill"></i></div>
+        <ol class="stages mono" id="wbStages"></ol>
+      </div>
+    </aside>
+
+    <div class="wb-main">
+      <div class="panel">
+        <div class="panel-head">
+          <h2 class="h">Output</h2>
+          <div class="outstrip" id="wbOutStrip"></div>
+        </div>
+
+        <div class="empty" id="wbEmpty">
+          <p>Pick two frames and run the model. The generated frame(s) show up here next to the real observation for the same time, where one exists.</p>
+        </div>
+
+        <div id="wbResult" hidden>
+          <div class="compare-bar">
+            <div class="seg" id="cmpMode">
+              <button data-v="side" aria-pressed="true">Side by side</button>
+              <button data-v="swipe">Swipe</button>
+              <button data-v="blink">Blink</button>
+              <button data-v="diff">Difference</button>
+            </div>
+            <div class="row gap">
+              <label class="inline">Palette
+                <select id="cmpCmap" class="cmap-select">
+                  <option value="gray">IR grey</option>
+                  <option value="enhanced">IR enhanced</option>
+                </select>
+              </label>
+              <label class="inline"><input type="checkbox" id="cmpFlow"> Flow vectors</label>
+            </div>
+          </div>
+          <div class="compare" id="compare"></div>
+          <div class="cmp-metrics" id="wbMetrics"></div>
+        </div>
+      </div>
+
+      <div class="panel meta-panel" id="wbMetaPanel" hidden>
+        <div class="panel-head">
+          <h2 class="h">Frame metadata</h2>
+          <span class="tag synthetic">AI-generated</span>
+        </div>
+        <dl class="meta mono" id="wbMeta"></dl>
+        <div class="row gap">
+          <a class="btn ghost" id="wbDownloadNc" href="#" download>Download .nc</a>
+          <span class="hint" id="wbNcHint"></span>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================ ANIMATION ============================ -->
+<section class="tab-panel" id="tab-animation" hidden>
+  <div class="panel">
+    <div class="panel-head">
+      <h2 class="h">Time-lapse</h2>
+      <div class="row gap">
+        <label class="inline">Sequence
+          <select id="anSeq"></select>
+        </label>
+        <label class="inline">Palette
+          <select id="anCmap" class="cmap-select">
+            <option value="gray">IR grey</option>
+            <option value="enhanced">IR enhanced</option>
+          </select>
+        </label>
+      </div>
+    </div>
+    <p class="lede" id="anLede"></p>
+    <div id="anPlayer"></div>
+  </div>
+</section>
+
+<!-- ============================ METRICS ============================ -->
+<section class="tab-panel" id="tab-metrics" hidden>
+  <div class="panel">
+    <div class="panel-head">
+      <h2 class="h">Validation against ground truth</h2>
+      <div class="row gap">
+        <label class="inline">Run
+          <select id="mtRun"></select>
+        </label>
+        <label class="btn ghost file-btn">Load metrics JSON
+          <input type="file" id="mtImport" accept=".json,application/json" hidden>
+        </label>
+        <button class="btn ghost" id="mtCsv">CSV</button>
+        <button class="btn ghost" id="mtJson">JSON</button>
+      </div>
+    </div>
+    <p class="lede" id="mtLede"></p>
+    <div class="tiles" id="mtTiles"></div>
+    <div class="legend" id="mtLegend"></div>
+    <div class="charts" id="mtCharts"></div>
+    <div class="chart-wide" id="mtBars"></div>
+    <details class="tablewrap" open>
+      <summary class="h small">Per-frame table</summary>
+      <div id="mtTable"></div>
+    </details>
+  </div>
+</section>
+
+<!-- ============================ INSAT ============================ -->
+<section class="tab-panel" id="tab-insat" hidden>
+  <div class="insat-head">
+    <div>
+      <div class="kicker mono">Deliverable</div>
+      <h1 class="display">INSAT-3DS TIR1 at 15-minute cadence</h1>
+      <p class="lede">INSAT-3DS images the full disk every 30 minutes. The model trained on GOES-19 / Himawari fills in the frame between each pair. The left track holds each native frame until the next one arrives, so you can see the gaps the model fills.</p>
+    </div>
+    <div class="insat-controls">
+      <label class="field">
+        <span>Output cadence</span>
+        <div class="seg" id="inCadence">
+          <button data-v="15" aria-pressed="true">15 min</button>
+          <button data-v="7.5">7.5 min</button>
+        </div>
+      </label>
+      <label class="field">
+        <span>Palette</span>
+        <select id="inCmap" class="cmap-select">
+          <option value="enhanced">IR enhanced</option>
+          <option value="gray">IR grey</option>
+        </select>
+      </label>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div id="inPlayer"></div>
+  </div>
+
+  <div class="insat-lower">
+    <div class="panel">
+      <div class="panel-head">
+        <h2 class="h">Hold-out check</h2>
+      </div>
+      <p class="hint">INSAT has no real 15-minute frames to compare against. As a check, we take frames 60 minutes apart, predict the native 30-minute frame between them and score it. This test is harder than the real 30→15 job.</p>
+      <div class="tiles compact" id="inTiles"></div>
+      <div id="inChart"></div>
+    </div>
+    <div class="panel">
+      <div class="panel-head">
+        <h2 class="h">Output files</h2>
+      </div>
+      <div class="filelist mono" id="inFiles"></div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================ REPORT ============================ -->
+<section class="tab-panel" id="tab-report" hidden>
+  <div class="report-grid">
+    <aside class="panel">
+      <h2 class="h">Comparison report</h2>
+      <p class="hint">Metric summaries, trend charts and example frame comparisons (truth / model / linear blend / error), put together into one document.</p>
+      <fieldset class="checks">
+        <legend>Include runs</legend>
+        <div id="rpRuns"></div>
+      </fieldset>
+      <label class="field">
+        <span>Example comparisons</span>
+        <select id="rpExamples">
+          <option value="2">2</option>
+          <option value="3" selected>3</option>
+          <option value="4">4</option>
+        </select>
+      </label>
+      <label class="field">
+        <span>Prepared by</span>
+        <input id="rpAuthor" type="text" placeholder="Team name">
+      </label>
+      <button class="btn primary wide" id="rpBuild">Build report</button>
+      <div class="row gap" style="margin-top:10px">
+        <button class="btn" id="rpPrint" disabled>Save as PDF</button>
+        <button class="btn ghost" id="rpHtml" disabled>Download HTML</button>
+      </div>
+      <p class="hint" id="rpStatus"></p>
+    </aside>
+    <div class="panel report-preview">
+      <iframe id="rpFrame" title="Report preview"></iframe>
+      <div class="empty" id="rpEmpty"><p>No report yet. Choose runs on the left and build one.</p></div>
+    </div>
+  </div>
+</section>
+
+</main>
+
+<div class="toast" id="toast" role="status" hidden></div>
+
+<script src="js/field.js"></script>
+<script src="js/metrics.js"></script>
+<script src="js/api.js"></script>
+<script src="js/charts.js"></script>
+<script src="js/viewer.js"></script>
+<script src="js/player.js"></script>
+<script src="js/report.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>
