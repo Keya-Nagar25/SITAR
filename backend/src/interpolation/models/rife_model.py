@@ -52,7 +52,7 @@ class SatelliteRIFE(nn.Module):
         mask=torch.sigmoid(mask_logit)
         blended=mask*warped0+(1-mask)*warped1
         residual=self.fusion_net(warped0,warped1,blended,mask)
-        pred=torch.clamp(blended+residual,0.0,0.1)
+        pred=torch.clamp(blended+residual,0.0,1.0)
         return {"pred":pred, "flow_t0":flow_t0,"flow_t1":flow_t1,"mask":mask}
 
     def _validate_input(self, frame0:torch.Tensor, frame1:torch.Tensor)->None:
