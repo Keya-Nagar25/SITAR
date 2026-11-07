@@ -29,6 +29,9 @@ import cv2
 import numpy as np
 from PIL import Image
 
+from src.data_pipeline.interpolate_farneback import warp_halfway
+from src.data_pipeline.optical_flow_farneback import calculate_farneback_flow
+from src.data_pipeline.validate_optical_flow import calculate_metrics
 from src.interpolation.utils import (
     NormalizationConfig,
     compute_metrics,
@@ -48,6 +51,7 @@ MAX_SIDE = int(os.environ.get("SITAR_MAX_SIDE", "1024"))
 # Must match frontend/js/field.js: grey PNG is a fixed linear scale, 180 K -> 255, 320 K -> 0.
 BT_MIN, BT_MAX = 180.0, 320.0
 BT_RANGE = BT_MAX - BT_MIN
+FLOW_PARAMS = {"pyr_scale": 0.5, "levels": 4, "winsize": 21, "iterations": 5, "poly_n": 7, "poly_sigma": 1.5, "flags": 0}
 
 KNOWN_SOURCES = {
     "goes19": {"name": "GOES-19 ABI · C13 (10.3 µm)", "short": "GOES-19", "band": "C13"},
@@ -247,7 +251,7 @@ class Catalog:
 
     # ---- pixels
     def values(self, frame: Frame) -> np.ndarray:
-        """Brightness temperature (K) at working resolution, NaNs filled."""
+        """Brightness temperature (K) at working resolution; NaN where there is no observation."""
         def make():
             if frame.kind == "baseline":
                 a, b = self.values(self.get(frame.frame0_id)), self.values(self.get(frame.frame1_id))
@@ -259,7 +263,7 @@ class Catalog:
 
     def png(self, frame: Frame, cmap: str) -> bytes:
         def make():
-            bt = self.values(frame)
+            bt = np.nan_to_num(self.values(frame), nan=BT_MAX)  # no observation draws as black
             idx = np.clip(np.rint((bt - BT_MIN) / BT_RANGE * 255), 0, 255).astype(np.uint8)
             rgb = LUTS.get(cmap, LUTS["gray"])[idx]
             buf = io.BytesIO()
@@ -272,12 +276,15 @@ def to_working(data: np.ndarray) -> np.ndarray:
     data = data.astype(np.float32)
     if np.isnan(data).all():
         raise ValueError("frame is entirely missing")
-    if np.isnan(data).any():
-        data = np.where(np.isnan(data), np.nanmean(data), data)
     h, w = data.shape
     s = MAX_SIDE / max(h, w)
     if s < 1:
-        data = cv2.resize(data, (max(1, round(w * s)), max(1, round(h * s))), interpolation=cv2.INTER_AREA)
+        size = (max(1, round(w * s)), max(1, round(h * s)))
+        valid = ~np.isnan(data)
+        total = cv2.resize(np.where(valid, data, 0), size, interpolation=cv2.INTER_AREA)
+        cover = cv2.resize(valid.astype(np.float32), size, interpolation=cv2.INTER_AREA)
+        data = np.full(cover.shape, np.nan, np.float32)
+        data[cover >= 0.5] = total[cover >= 0.5] / cover[cover >= 0.5]
     return data
 
 
@@ -301,21 +308,26 @@ LUTS = {
 
 # ---------------------------------------------------------------- metrics
 
+def to_unit(bt: np.ndarray) -> np.ndarray:
+    return np.clip((bt - BT_MIN) / BT_RANGE, 0, 1).astype(np.float32)
+
+
 def score(truth: np.ndarray, pred: np.ndarray) -> Dict[str, float]:
     """Same keys/units as frontend/js/metrics.js: MSE in K², MAE in K, PSNR over the 140 K range."""
-    tn = np.clip((truth - BT_MIN) / BT_RANGE, 0, 1)
-    pn = np.clip((pred - BT_MIN) / BT_RANGE, 0, 1)
-    m = compute_metrics(pn, tn, data_range=1.0)
+    tn, pn = to_unit(truth), to_unit(pred)
+    valid = np.isfinite(tn) & np.isfinite(pn)
+    masked = lambda f, g: calculate_metrics(np.where(valid, g, 0.5), np.where(valid, f, 0.5), valid)
+    m = compute_metrics(pn, tn, data_range=1.0) if valid.all() else masked(pn, tn)
     out = {"ssim": m["ssim"], "psnr": m["psnr"], "mse": m["mse"] * BT_RANGE ** 2, "mae": m["mae"] * BT_RANGE}
     ct, cp = truth < 235, pred < 235
     union = np.logical_or(ct, cp).sum()
     out["cloud_iou"] = float(np.logical_and(ct, cp).sum() / union) if union else 1.0
 
     def grad(f):
-        gy, gx = np.gradient(f)
+        gy, gx = np.gradient(np.where(valid, f, BT_MIN))
         return np.clip(np.hypot(gx, gy) / 40, 0, 1)
 
-    out["grad_ssim"] = compute_metrics(grad(pred), grad(truth), data_range=1.0)["ssim"]
+    out["grad_ssim"] = masked(grad(pred), grad(truth))["ssim"]
     return {k: float(v) if np.isfinite(v) else 99.0 for k, v in out.items()}
 
 
@@ -368,22 +380,23 @@ class Engine:
                 out = self.model(ta, tb, t=t)
             pred = out["pred"][0, 0].cpu().numpy() * (meta["vmax"] - meta["vmin"]) + meta["vmin"]
             flow = (out["flow_t1"] - out["flow_t0"])[0].permute(1, 2, 0).cpu().numpy()
+        pred = np.where(np.isfinite(a) & np.isfinite(b), pred, np.nan)
         return pred.astype(np.float32), flow
 
-    @staticmethod
-    def _flow(a8, b8):
-        return cv2.calcOpticalFlowFarneback(a8, b8, None, 0.5, 4, 21, 5, 7, 1.5, 0)
-
     def _run_farneback(self, a, b, t):
-        to8 = lambda x: np.clip((BT_MAX - x) / BT_RANGE * 255, 0, 255).astype(np.uint8)
-        a8, b8 = to8(a), to8(b)
-        f01, f10 = self._flow(a8, b8), self._flow(b8, a8)
-        h, w = a.shape
-        gx, gy = np.meshgrid(np.arange(w, dtype=np.float32), np.arange(h, dtype=np.float32))
-        # backward-warp each input to time t (linear-motion assumption)
-        w0 = cv2.remap(a, gx - t * f01[..., 0], gy - t * f01[..., 1], cv2.INTER_LINEAR, borderMode=cv2.BORDER_REPLICATE)
-        w1 = cv2.remap(b, gx - (1 - t) * f10[..., 0], gy - (1 - t) * f10[..., 1], cv2.INTER_LINEAR, borderMode=cv2.BORDER_REPLICATE)
-        return ((1 - t) * w0 + t * w1).astype(np.float32), f01
+        ua, ub = to_unit(a), to_unit(b)
+        ma, mb = np.isfinite(ua), np.isfinite(ub)
+        common = ma & mb
+        if not common.any():
+            raise ValueError("frames have no valid pixels in common")
+        f01, _, _, v01 = calculate_farneback_flow(ua, ub, common, FLOW_PARAMS)
+        f10, _, _, v10 = calculate_farneback_flow(ub, ua, common, FLOW_PARAMS)
+        # warp each input to time t (linear-motion assumption); no-data pixels never contribute
+        w0, m0 = warp_halfway(ua, ma, f01, v01, t)
+        w1, m1 = warp_halfway(ub, mb, f10, v10, 1 - t)
+        blend = (1 - t) * ua + t * ub  # pixels whose motion leaves the image
+        pred = np.where(m0 & m1, (1 - t) * w0 + t * w1, blend)
+        return (pred * BT_RANGE + BT_MIN).astype(np.float32), np.nan_to_num(f01)
 
 
 def flow_grid(flow: np.ndarray, grid: int = 16) -> Dict[str, Any]:
