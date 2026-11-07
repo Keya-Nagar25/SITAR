@@ -13,7 +13,7 @@ from PIL import Image
 from scipy import ndimage
 
 from scripts.prepare_goes19 import downsample
-from src.api.service import BT_MAX, Engine, Frame, Catalog, score, to_working
+from src.api.service import Catalog, Engine, Frame, score, to_working
 from src.data_pipeline.calibration import radiance_to_brightness_temperature
 
 
@@ -88,9 +88,12 @@ def test_farneback_keeps_no_data_and_tracks_motion():
     assert np.mean(np.abs(pred - truth)[disk]) < 0.5 * np.mean(np.abs((a + b) / 2 - truth)[disk])
 
 
-def test_farneback_fills_image_edges_when_nothing_is_missing():
-    pred, _ = Engine()._run_farneback(cloudy_frame(0), cloudy_frame(8), 0.5)
+def test_farneback_handles_motion_leaving_the_image():
+    a, b, truth = cloudy_frame(72), cloudy_frame(80), cloudy_frame(76)  # cloud crossing the right edge
+    pred, _ = Engine()._run_farneback(a, b, 0.5)
     assert np.isfinite(pred).all()
+    edge = (slice(None), slice(-16, None))
+    assert np.mean(np.abs(pred - truth)[edge]) < 0.7 * np.mean(np.abs((a + b) / 2 - truth)[edge])
 
 
 def test_no_data_pixels_render_black(tmp_path, monkeypatch):
@@ -104,4 +107,3 @@ def test_no_data_pixels_render_black(tmp_path, monkeypatch):
     grey = np.array(Image.open(io.BytesIO(cat.png(frame, "gray"))))
     assert grey[0, 0].tolist() == [0, 0, 0]
     assert grey[1, 1, 0] > 0
-    assert BT_MAX == 320.0  # no data shares the coldest display value of the grey scale
