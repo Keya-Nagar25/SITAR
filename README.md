@@ -126,7 +126,6 @@ A web interface comparing original and interpolated imagery.
 ### Installation
 
 ```bash
-cd backend
 python -m venv .venv
 .venv\Scripts\activate          # macOS/Linux: source .venv/bin/activate
 pip install -r requirements.txt
@@ -134,7 +133,7 @@ pip install -r requirements.txt
 
 ### Run the dashboard
 
-All commands below run from `backend/`.
+All commands below run from the project root.
 
 ```bash
 # 1. Sample data: synthetic GOES-19 / Himawari / INSAT-3DS sequences in data/sample/

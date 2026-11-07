@@ -1,7 +1,7 @@
 """
 FastAPI app implementing the API contract in frontend/README.md.
 
-Run from the backend/ folder:
+Run from the project root:
     python -m uvicorn src.api.app:app --port 8000
 then open http://localhost:8000 (the dashboard is served from the same origin).
 """
@@ -16,7 +16,7 @@ from fastapi.responses import FileResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
-from .service import BACKEND_DIR, DATA_DIR, Service
+from .service import PROJECT_DIR, DATA_DIR, Service
 
 app = FastAPI(title="SITAR frame interpolation API")
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
@@ -136,6 +136,6 @@ def rescan():
     return {"sources": svc.catalog.sources()}
 
 
-FRONTEND_DIR = BACKEND_DIR.parent / "frontend"
+FRONTEND_DIR = PROJECT_DIR / "frontend"
 if FRONTEND_DIR.is_dir():
     app.mount("/", StaticFiles(directory=FRONTEND_DIR, html=True), name="frontend")

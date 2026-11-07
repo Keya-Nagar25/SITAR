@@ -37,10 +37,10 @@ from src.interpolation.utils import (
     write_interpolated_frame_nc,
 )
 
-BACKEND_DIR = Path(__file__).resolve().parents[2]
-DATA_DIR = Path(os.environ.get("SITAR_DATA_DIR", BACKEND_DIR / "data" / "sample"))
-OUT_DIR = Path(os.environ.get("SITAR_OUT_DIR", BACKEND_DIR / "data" / "processed" / "interp"))
-CKPT_DIR = Path(os.environ.get("SITAR_CHECKPOINT_DIR", BACKEND_DIR / "checkpoints"))
+PROJECT_DIR = Path(__file__).resolve().parents[2]
+DATA_DIR = Path(os.environ.get("SITAR_DATA_DIR", PROJECT_DIR / "data" / "sample"))
+OUT_DIR = Path(os.environ.get("SITAR_OUT_DIR", PROJECT_DIR / "data" / "processed" / "interp"))
+CKPT_DIR = Path(os.environ.get("SITAR_CHECKPOINT_DIR", PROJECT_DIR / "checkpoints"))
 # Frames larger than this (e.g. 5424x5424 GOES full disk) are area-downsampled
 # for display, inference and metrics so the dashboard stays responsive on CPU.
 MAX_SIDE = int(os.environ.get("SITAR_MAX_SIDE", "1024"))
@@ -76,7 +76,7 @@ def stamp(t: dt.datetime) -> str:
 
 def rel(p: Path) -> str:
     try:
-        return p.resolve().relative_to(BACKEND_DIR).as_posix()
+        return p.resolve().relative_to(PROJECT_DIR).as_posix()
     except ValueError:
         return p.as_posix()
 
@@ -335,7 +335,7 @@ class Engine:
     def description(self) -> str:
         if self.checkpoint:
             return f"SatelliteRIFE ({self.checkpoint.name})"
-        return "Farneback optical flow (no SatelliteRIFE checkpoint found in backend/checkpoints)"
+        return "Farneback optical flow (no SatelliteRIFE checkpoint found in checkpoints/)"
 
     def _load(self):
         if self.model is None:
