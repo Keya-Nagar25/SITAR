@@ -222,3 +222,8 @@ __marimo__/
 data/*
 !data/.gitkeep
 checkpoints/*.pth
+
+# Data files (too large for GitHub)
+desktop.ini
+*.nc
+*.npz

@@ -28,3 +28,8 @@ uvicorn[standard]
 
 # Testing
 pytest
+
+scikit-learn
+satpy
+pyresample
+boto3
