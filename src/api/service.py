@@ -276,7 +276,6 @@ def to_working(data: np.ndarray) -> np.ndarray:
     data = data.astype(np.float32)
     if np.isnan(data).all():
         raise ValueError("frame is entirely missing")
-    data = np.where(np.isnan(data), np.nanmean(data), data)
     h, w = data.shape
     s = MAX_SIDE / max(h, w)
     if s < 1:

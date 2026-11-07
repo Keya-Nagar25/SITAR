@@ -92,8 +92,8 @@ def test_farneback_handles_motion_leaving_the_image():
     a, b, truth = cloudy_frame(72), cloudy_frame(80), cloudy_frame(76)  # cloud crossing the right edge
     pred, _ = Engine()._run_farneback(a, b, 0.5)
     assert np.isfinite(pred).all()
-    edge = (slice(None), slice(-16, None))
-    assert np.mean(np.abs(pred - truth)[edge]) < 0.7 * np.mean(np.abs((a + b) / 2 - truth)[edge])
+    edge = (slice(None), slice(-3, None))  # one warp has no source pixel here, so the other must be used
+    assert np.mean(np.abs(pred - truth)[edge]) < 0.5 * np.mean(np.abs((a + b) / 2 - truth)[edge])
 
 
 def test_no_data_pixels_render_black(tmp_path, monkeypatch):
