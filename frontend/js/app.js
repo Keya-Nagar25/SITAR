@@ -131,6 +131,8 @@
     $("#wbResult").hidden = true; $("#wbEmpty").hidden = false; $("#wbMetaPanel").hidden = true; $("#wbOutStrip").innerHTML = "";
     try {
       wb.sources = await api.sources();
+      // Only the server's active engine can run, so name it rather than offer a menu of models.
+      $("#wbModel").innerHTML = `<option value="SatelliteRIFE">${esc((await api.health()).model)}</option>`;
     } catch (e) { toast("Could not load sources: " + e.message); return; }
     $("#wbSource").innerHTML = wb.sources.map((s) => `<option value="${esc(s.id)}">${esc(s.name)}</option>`).join("");
     await loadSourceFrames();
