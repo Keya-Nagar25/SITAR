@@ -394,7 +394,8 @@ class Engine:
         # warp each input to time t (linear-motion assumption); no-data pixels never contribute
         w0, m0 = warp_halfway(ua, ma, f01, v01, t)
         w1, m1 = warp_halfway(ub, mb, f10, v10, 1 - t)
-        blend = (1 - t) * ua + t * ub  # pixels whose motion leaves the image
+        # where motion leaves the image one warp has no source pixel, so trust the other
+        blend = np.where(m0, w0, np.where(m1, w1, (1 - t) * ua + t * ub))
         pred = np.where(m0 & m1, (1 - t) * w0 + t * w1, blend)
         return (pred * BT_RANGE + BT_MIN).astype(np.float32), np.nan_to_num(f01)
 
