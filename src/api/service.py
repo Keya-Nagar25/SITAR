@@ -51,6 +51,7 @@ BT_RANGE = BT_MAX - BT_MIN
 
 KNOWN_SOURCES = {
     "goes19": {"name": "GOES-19 ABI · C13 (10.3 µm)", "short": "GOES-19", "band": "C13"},
+    "goes19_real": {"name": "GOES-19 ABI · C13 (10.3 µm) · real data", "short": "GOES-19 real", "band": "C13"},
     "himawari": {"name": "Himawari-9 AHI · B13 (10.4 µm)", "short": "Himawari-9", "band": "B13"},
     "insat3ds": {"name": "INSAT-3DS Imager · TIR1 (10.8 µm)", "short": "INSAT-3DS", "band": "TIR1"},
     "insat3dr": {"name": "INSAT-3DR Imager · TIR1 (10.8 µm)", "short": "INSAT-3DR", "band": "TIR1"},
