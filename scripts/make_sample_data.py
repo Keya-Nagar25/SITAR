@@ -7,7 +7,7 @@ a rotating cyclone and a convective cell that grows quickly (the non-linear
 case a plain blend gets wrong). Files are named like the real products, so
 dropping real files into the same folders works the same way.
 
-Usage (from backend/):
+Usage (from the project root):
     python scripts/make_sample_data.py            # skips sources that already have files
     python scripts/make_sample_data.py --force    # regenerate
 """
